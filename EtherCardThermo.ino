@@ -5,7 +5,7 @@
 */
 
 
-#define DEBUG
+//#define DEBUG
 
 
 #include "EtherCard.h"
@@ -22,7 +22,13 @@
  * EEPROM map
  *
  * 0    ID  0x99
- * 1    T1  low
+ * 1    T1  16 bit
+ * 3    T2  16 bit
+ * 5    T3  16 bit
+ * 7    slot 7 * 16 bit
+ * 14   8 * 8 * 8 bit weekly_program
+ * 78   10 * 7 * 8 bit daily_program
+ * 148
  *
  *
  */
@@ -33,7 +39,7 @@
 #define EEPROM_WEEKLY_BASE
 
 #define HTTP_PORT 80
-#define BUFFER_SIZE 550
+#define BUFFER_SIZE 545
 #define STR_BUFFER_SIZE 32
 
 
@@ -71,9 +77,7 @@ static char strbuf[STR_BUFFER_SIZE+1];
 #define COLD_PIN 3
 #define HOT_PIN 2
 
-#ifdef DEBUG
 #define BEAT_PIN 8
-#endif
 
 #define ROOM_1_PIN 2
 #define ROOM_2_PIN 3
@@ -84,6 +88,9 @@ static char strbuf[STR_BUFFER_SIZE+1];
 // TODO: move to config
 
 #ifdef DEBUG
+
+#include <MemoryFree.h>
+
 // Run FAST!!!!
 #define TEMP_READ_INTERVAL 4000 // millis
 #define VALVE_OPENING_TIME_S 10UL // 10 sec
@@ -184,10 +191,7 @@ DallasTemperature sensors(&oneWire);
 uint32_t pump_blocked_time = 0;
 uint32_t pump_open_time = 0;
 byte this_weekday;
-int last_error_code = ERR_NO;
-
-// Global OFF
-byte off = 0; // Unused
+byte last_error_code = ERR_NO;
 byte pump_open = 0;
 
 // Temperatures
@@ -199,7 +203,7 @@ uint16_t hot_temp, cold_temp;
 // 8 slots    6:30  8:00 12:00 13:00 16:00 20:00 22:00
 uint16_t slot[SLOT_NUMBER - 1] = { 390,  480,  720,  780,  960, 1200, 1320 };
 // 6 programs, T level for each slot/pgm tuple
-byte daily_program[DAILY_PROGRAM_NUMBER][SLOT_NUMBER] = {
+static byte daily_program[DAILY_PROGRAM_NUMBER][SLOT_NUMBER] = {
     //0:00 6:30  8:00 12:00 13:00 16:00 20:00 22:00
     {    0,   0,    0,    0,    0,    0,    0,    0 }, // all T0
     {    1,   1,    1,    1,    1,    1,    1,    1 }, // all T1
@@ -212,7 +216,7 @@ byte daily_program[DAILY_PROGRAM_NUMBER][SLOT_NUMBER] = {
 };
 
 // Weekly programs, 0 is monday
-byte weekly_program[WEEKLY_PROGRAM_NUMBER][7] = {
+static byte weekly_program[WEEKLY_PROGRAM_NUMBER][7] = {
     //  Mo Tu Th We Fr Sa Su
         {0, 0, 0, 0, 0, 0, 0}, // always off
         {1, 1, 1, 1, 1, 1, 1}, // Always 1
@@ -228,7 +232,7 @@ byte weekly_program[WEEKLY_PROGRAM_NUMBER][7] = {
 
 
 // Array of rooms
-struct room_t {
+static struct room_t {
   DeviceAddress address;
   byte pin;
   byte program;
@@ -236,11 +240,11 @@ struct room_t {
   int temperature;
   uint32_t last_status_change;
 } rooms[ROOMS] = {
-    {{ 0x28, 0xAD, 0x4C, 0xC4, 0x03, 0x00, 0x00, 0x13}, ROOM_1_PIN, 3, CLOSED},
-    {{ 0x28, 0x6C, 0x41, 0xC4, 0x03, 0x00, 0x00, 0x57}, ROOM_2_PIN, 8, CLOSED},
-    {{ 0x28, 0x6C, 0x41, 0xC4, 0x03, 0x00, 0x00, 0x37}, ROOM_3_PIN, 8, CLOSED},
-    {{ 0x28, 0x6C, 0x41, 0xC4, 0x03, 0x00, 0x00, 0x27}, ROOM_4_PIN, 8, CLOSED},
-    {{ 0x28, 0x6C, 0x41, 0xC4, 0x03, 0x00, 0x00, 0x67}, ROOM_5_PIN, 8, CLOSED}
+    {{ 0x28, 0xAD, 0x4C, 0xC4, 0x03, 0x00, 0x00, 0x13}, ROOM_1_PIN, 3, CLOSED}, // 1 - Bagno
+    {{ 0x28, 0x6C, 0x41, 0xC4, 0x03, 0x00, 0x00, 0x57}, ROOM_2_PIN, 8, CLOSED}, // 2 - Camera A
+    {{ 0x28, 0x6C, 0x41, 0xC4, 0x03, 0x00, 0x00, 0x37}, ROOM_3_PIN, 8, CLOSED}, //   - Sala
+    {{ 0x28, 0x6C, 0x41, 0xC4, 0x03, 0x00, 0x00, 0x27}, ROOM_4_PIN, 8, CLOSED}, //   - Camera O
+    {{ 0x28, 0x6C, 0x41, 0xC4, 0x03, 0x00, 0x00, 0x67}, ROOM_5_PIN, 8, CLOSED}  //   - Camera P
 };
 
 
@@ -301,8 +305,8 @@ void check_temperatures(){
 
     // Local flags to check if any room needs_heating and
     // is ready to open the pump.
-    int needs_pump_open = 0;
-    int needs_heating = 0;
+    byte needs_pump_open = 0;
+    byte needs_heating = 0;
 
     for(int i=0; i<ROOMS; i++){
         // Get temperature
@@ -313,8 +317,7 @@ void check_temperatures(){
         char new_status = rooms[i].status;
         needs_heating = (new_status == OPENING);
         if(!needs_heating){
-            float t = get_desired_temperature(i, now.hour() * 60 + now.minute());
-            needs_heating = rooms[i].temperature < (new_status == OPEN ? t + HYSTERESIS : t - HYSTERESIS);
+            needs_heating = get_desired_temperature(i, now.hour() * 60 + now.minute()) + (new_status == OPEN ? HYSTERESIS : - HYSTERESIS);
         }
         if(!needs_heating){
             new_status = CLOSED;
@@ -355,6 +358,7 @@ void check_temperatures(){
         }
     } else {
         pump_open = 0;
+        pump_open_time = 0;
     }
     digitalWrite(PUMP_PIN, pump_open);
 }
@@ -387,11 +391,8 @@ void thermo_setup(){
 
     t.every(TEMP_READ_INTERVAL, check_temperatures);
 
-
-#ifdef DEBUG
     pinMode(BEAT_PIN, OUTPUT);
     t.oscillate(BEAT_PIN, 1000, 1);
-#endif
 
 }
 
@@ -426,22 +427,14 @@ void setup(){
 }
 
 
-#ifdef DEBUG
 
 // variables created by the build process when compiling the sketch
-extern int __bss_end;
-extern void *__brkval;
-// function to return the amount of free RAM
-int freeMemory()  {
-    int freeValue;
-    if((int)__brkval == 0)
-        freeValue = ((int)&freeValue) - ((int)&__bss_end);
-    else
-        freeValue = ((int)&freeValue) - ((int)__brkval);
-    return freeValue;
+int freeMemory () {
+  extern int __heap_start, *__brkval;
+  int v;
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
 }
 
-#endif
 
 
 /**
@@ -632,17 +625,8 @@ void print_json_response(byte print_programs){
 
         bfill.emit_p(PSTR("\"h\":$S,\"E\":$D,"),
             decimal_string(hot_temp, strbuf),
-            last_error_code);
-
-#ifdef DEBUG
-
-
-        itoa(freeMemory(), strbuf, 10);
-        bfill.emit_p(PSTR("\"f\":$S,\"R\":["),
-            strbuf);
-#else
+            (word)last_error_code);
         bfill.emit_p(PSTR("\"R\":["));
-#endif
 
         for(int room=0; room<ROOMS; room++){
             bfill.emit_p( PSTR("{\"t\":$S,"),
@@ -703,6 +687,11 @@ void loop(){
         }
         if(strncmp("pr", data, 2)==0){
             print_json_response(1);
+            goto SENDTCP;
+        }
+        if(strncmp("db", data, 2)==0){
+            itoa(freeMemory(), strbuf, 10);
+            bfill.emit_p(PSTR("$S"), strbuf);
             goto SENDTCP;
         }
         cmd=analyse_cmd(data, "c");
