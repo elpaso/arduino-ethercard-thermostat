@@ -36,10 +36,9 @@
 #define EEPROM_ID = 0x99
 
 
-#define EEPROM_WEEKLY_BASE
 
 #define HTTP_PORT 80
-#define BUFFER_SIZE 545
+#define BUFFER_SIZE 500
 #define STR_BUFFER_SIZE 32
 
 
@@ -92,7 +91,7 @@ static char strbuf[STR_BUFFER_SIZE+1];
 #include <MemoryFree.h>
 
 // Run FAST!!!!
-#define TEMP_READ_INTERVAL 4000 // millis
+#define TEMP_READ_INTERVAL 5000 // millis
 #define VALVE_OPENING_TIME_S 10UL // 10 sec
 #define BLOCKED_TIME_S 60UL // 1 minute
 #define RISE_TEMP_TIME_S 30UL // 30 seconds
@@ -193,6 +192,7 @@ uint32_t pump_open_time = 0;
 byte this_weekday;
 byte last_error_code = ERR_NO;
 byte pump_open = 0;
+byte this_slot = 0;
 
 // Temperatures
 // TODO: configurable
@@ -200,9 +200,10 @@ uint16_t T[] = {500, 1500, 1800, 2800};
 uint16_t hot_temp, cold_temp;
 
 // Programs
-// 8 slots    6:30  8:00 12:00 13:00 16:00 20:00 22:00
+// 8 slots                    0:0 6:30  8:00 12:00 13:00 16:00 20:00 22:00  24:00
 uint16_t slot[SLOT_NUMBER - 1] = { 390,  480,  720,  780,  960, 1200, 1320 };
 // 6 programs, T level for each slot/pgm tuple
+/*
 static byte daily_program[DAILY_PROGRAM_NUMBER][SLOT_NUMBER] = {
     //0:00 6:30  8:00 12:00 13:00 16:00 20:00 22:00
     {    0,   0,    0,    0,    0,    0,    0,    0 }, // all T0
@@ -214,24 +215,81 @@ static byte daily_program[DAILY_PROGRAM_NUMBER][SLOT_NUMBER] = {
     {    1,   3,    1,    3,    3,    3,    2,    1 },  // awakening, meals, afternoon and evening 6
     {    1,   3,    3,    3,    3,    3,    2,    1 },  // all day 7
 };
+*/
 
-// Weekly programs, 0 is monday
-static byte weekly_program[WEEKLY_PROGRAM_NUMBER][7] = {
-    //  Mo Tu Th We Fr Sa Su
-        {0, 0, 0, 0, 0, 0, 0}, // always off
-        {1, 1, 1, 1, 1, 1, 1}, // Always 1
-        {2, 2, 2, 2, 2, 2, 2}, // Always 2
-        {3, 3, 3, 3, 3, 3, 3}, // Always 3
-        {4, 4, 4, 4, 4, 7, 7}, // 4 (5+2)
-        {4, 4, 4, 4, 4, 4, 7}, // 4 (6+1)
-        {5, 5, 5, 5, 5, 7, 7}, // 5 (5+2)
-        {5, 5, 5, 5, 5, 5, 7}, // 5 (6+1)
-        {6, 6, 6, 6, 6, 7, 7}, // 6 (5+2)
-        {6, 6, 6, 6, 6, 6, 7} // 6 (6+1)
+
+static byte daily_program[DAILY_PROGRAM_NUMBER][4] = {
+    {
+        B11111111, // 0
+        B00000000,
+        B00000000,
+        B00000000
+    },
+    {
+        B00000000, // 1
+        B11111111,
+        B00000000,
+        B00000000
+    },
+    {
+        B00000000, // 2
+        B00000000,
+        B11111111,
+        B00000000
+    },
+    {
+        B00000000, // 3
+        B00000000,
+        B00000000,
+        B11111111
+    },
+
+    {
+        B00000000, // 4
+        B10111001,
+        B00000100,
+        B01000010
+    },
+
+    {
+        B00000000, // 5
+        B10101001,
+        B00000100,
+        B01010010
+    },
+    {
+        B00000000, // 6
+        B10100001,
+        B00000010,
+        B01011100
+    },
+    {
+        B00000000, // 7
+        B10000001,
+        B00000010,
+        B01111100
+    }
 };
 
 
-// Array of rooms
+
+// Weekly programs, 0 is monday
+static byte weekly_program[WEEKLY_PROGRAM_NUMBER][3] = {
+       //Mo-Fr Sa Su
+        {0, 0, 0}, // always off
+        {1, 1, 1}, // Always 1
+        {2, 2, 2}, // Always 2
+        {3, 3, 3}, // Always 3
+        {4, 7, 7}, // 4 (5+2)
+        {4, 4, 7}, // 4 (6+1)
+        {5, 7, 7}, // 5 (5+2)
+        {5, 5, 7}, // 5 (6+1)
+        {6, 7, 7}, // 6 (5+2)
+        {6, 6, 7} // 6 (6+1)
+};
+
+
+/*/ Array of rooms
 static struct room_t {
   DeviceAddress address;
   byte pin;
@@ -246,16 +304,33 @@ static struct room_t {
     {{ 0x28, 0x6C, 0x41, 0xC4, 0x03, 0x00, 0x00, 0x27}, ROOM_4_PIN, 8, CLOSED}, //   - Camera O
     {{ 0x28, 0x6C, 0x41, 0xC4, 0x03, 0x00, 0x00, 0x67}, ROOM_5_PIN, 8, CLOSED}  //   - Camera P
 };
+*/
+
+static struct room_t {
+  byte pin;
+  byte program;
+  char status;
+  int temperature;
+  uint32_t last_status_change;
+} rooms[ROOMS] = {
+    { ROOM_1_PIN, 3, CLOSED}, // 1 - Bagno
+    { ROOM_2_PIN, 4, CLOSED}, // 2 - Camera A
+    { ROOM_3_PIN, 5, CLOSED}, //   - Sala
+    { ROOM_4_PIN, 7, CLOSED}, //   - Camera O
+    { ROOM_5_PIN, 8, CLOSED}  //   - Camera P
+};
 
 
-
-float get_desired_temperature(byte room, uint32_t this_time){
-    // Get slot
-    byte _slot = 0;
-    while(_slot <= 6 && this_time > slot[_slot]){
-        _slot++;
+/**
+ * Returns the desider temperature for a room and a time slot (in seconds)
+ */
+float get_desired_temperature(byte room){
+    for(byte i=0; i<4; i++){
+        if(daily_program[weekly_program[rooms[room].program][this_weekday]][i] & (B10000000 >> this_slot)){
+            return T[i];
+        }
     }
-    return T[daily_program[weekly_program[rooms[room].program][this_weekday]][_slot]];
+    return T[0];
 }
 
 
@@ -285,6 +360,12 @@ void check_temperatures(){
     now = RTC.now();
     this_weekday = now.dayOfWeek(); // sunday is 0
     this_weekday = this_weekday ? this_weekday - 1 : 6;
+    this_weekday = this_weekday <= 4 ? 0 : this_weekday - 4;
+    // Get slot
+    this_slot = 0;
+    while(this_slot <= 6 && (uint16_t)now.hour() * 60 + (uint16_t)now.minute() > slot[this_slot]){
+        this_slot++;
+    }
 
 
     // Check if can unlock
@@ -310,14 +391,14 @@ void check_temperatures(){
 
     for(int i=0; i<ROOMS; i++){
         // Get temperature
-        float tempC = sensors.getTempC(rooms[i].address);
+        float tempC = sensors.getTempCByIndex(i);
         if (tempC != -127.00) {
             rooms[i].temperature = (int)(tempC * 100);
         }
         char new_status = rooms[i].status;
         needs_heating = (new_status == OPENING);
         if(!needs_heating){
-            needs_heating = get_desired_temperature(i, now.hour() * 60 + now.minute()) + (new_status == OPEN ? HYSTERESIS : - HYSTERESIS);
+            needs_heating = get_desired_temperature(i) + (new_status == OPEN ? HYSTERESIS : - HYSTERESIS);
         }
         if(!needs_heating){
             new_status = CLOSED;
@@ -384,8 +465,9 @@ void thermo_setup(){
     // Sensors
     // set the resolution to 12 bit (maximum)
     sensors.begin();
+    sensors.setResolution(12);
+
     for (int i=0; i<ROOMS; i++){
-        sensors.setResolution(rooms[i].address, 12);
         pinMode(rooms[i].pin, OUTPUT);
     }
 
@@ -597,14 +679,14 @@ void print_json_response(byte print_programs){
         bfill.emit_p( PSTR(",\"w\":["));
 
         for(int i=0; i<WEEKLY_PROGRAM_NUMBER; i++){
-            json_array_wrap(weekly_program[i], 7);
+            json_array_wrap(weekly_program[i], 3);
             if(i<WEEKLY_PROGRAM_NUMBER-1){
                 bfill.emit_p( PSTR(","));
             }
         }
         bfill.emit_p( PSTR("],\"d\":["));
         for(int i=0; i<DAILY_PROGRAM_NUMBER; i++){
-            json_array_wrap(daily_program[i], SLOT_NUMBER);
+            json_array_wrap(daily_program[i], 4);
             if(i<DAILY_PROGRAM_NUMBER-1){
                 bfill.emit_p( PSTR(","));
             }
@@ -612,9 +694,10 @@ void print_json_response(byte print_programs){
 
     } else {
         ultoa(now.unixtime(), strbuf, 10);
-        bfill.emit_p(PSTR("{\"P\":$D,\"u\":$S,"),
+        bfill.emit_p(PSTR("{\"P\":$D,\"u\":$S,\"s\":$D,"),
             pump_open,
-            strbuf);
+            strbuf,
+            (int)this_slot);
 
         ultoa((pump_blocked_time ? (pump_blocked_time + BLOCKED_TIME_S) : 0UL), strbuf, 10);
         bfill.emit_p(PSTR("\"b\":$S,"),
@@ -633,7 +716,7 @@ void print_json_response(byte print_programs){
                 decimal_string(rooms[room].temperature, strbuf));
 
             bfill.emit_p( PSTR("\"T\":$S,\"p\":$D,\"d\":$D,"),
-                decimal_string(get_desired_temperature(room, now.hour() * 60 + now.minute()), strbuf),
+                decimal_string(get_desired_temperature(room), strbuf),
                 rooms[room].program,
                 weekly_program[rooms[room].program][this_weekday]);
 
@@ -714,11 +797,12 @@ void loop(){
                 case CMD_WRITE_EEPROM:
                     // Write to EEPROM
                 break;
+                // Set daily_program for a given weekly_program
                 case CMD_W_PGM_SET_D_PGM:
                     parm1 = analyse_cmd(data, "p");
                     if(in_range(parm1, 0, WEEKLY_PROGRAM_NUMBER - 1)){
-                        parm2 = analyse_cmd(data, "v"); // dayOfWeek
-                        if(in_range(parm2, 0, 6)){
+                        parm2 = analyse_cmd(data, "v"); // dayOfWeek (0=mo-fr,1=sa,2=su)
+                        if(in_range(parm2, 0, 2)){
                             parm3 = analyse_cmd(data, "v");
                             if(in_range(parm3, 0, DAILY_PROGRAM_NUMBER - 1)){
                                 weekly_program[parm1][parm2] = parm3;
