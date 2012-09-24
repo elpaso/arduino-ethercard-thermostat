@@ -15,6 +15,7 @@
 #include <Wire.h>
 #include "RTClib.h"
 #include <EEPROM.h>
+#include "EEPROMAnything.h"
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
@@ -22,20 +23,24 @@
  * EEPROM map
  *
  * 0    ID  0x99
- * 1    T1  16 bit
- * 3    T2  16 bit
- * 5    T3  16 bit
- * 7    slot 7 * 16 bit
- * 14   8 * 8 * 8 bit weekly_program
- * 78   10 * 7 * 8 bit daily_program
- * 148
+ * 1    T0  16 bit
+ * 2    T1  16 bit
+ * 4    T2  16 bit
+ * 6    T3  16 bit
+ * 8    slot 7 * 16 bit
+ * 22   10 * 3 * 8 bit weekly_program
+ * 52   8 * 4 * 8 bit daily_program
+ * 84  rooms program 8 bit * 5
  *
  *
  */
 
-#define EEPROM_ID = 0x99
-
-
+#define EEPROM_ID = 153
+#define EEPROM_T_BASE = 1
+#define EEPROM_SLOT_BASE = 8
+#define EEPROM_W_BASE = 22
+#define EEPROM_D_BASE = 52
+#define EEPROM_ROOMS_BASE = 84
 
 #define HTTP_PORT 80
 #define BUFFER_SIZE 500
@@ -53,8 +58,6 @@ static uint8_t myip[4] = {192,168,99,123};
 static char strbuf[STR_BUFFER_SIZE+1];
 
 
-// Needed for prog_char PROGMEM
-//#include <avr/pgmspace.h>
 
 /** ****************************************************
 *
@@ -91,7 +94,7 @@ static char strbuf[STR_BUFFER_SIZE+1];
 #include <MemoryFree.h>
 
 // Run FAST!!!!
-#define TEMP_READ_INTERVAL 5000 // millis
+#define TEMP_READ_INTERVAL 10000 // millis
 #define VALVE_OPENING_TIME_S 10UL // 10 sec
 #define BLOCKED_TIME_S 60UL // 1 minute
 #define RISE_TEMP_TIME_S 30UL // 30 seconds
@@ -142,19 +145,9 @@ Timer t;
 *
 */
 
-//#include <Wire.h>
-//#include "RTClib.h"
 
 RTC_DS1307 RTC;
 DateTime now;
-
-
-/******************************
- *
- * EEPROM
- *
- */
-//#include <EEPROM.h>
 
 
 /** ************************************************
@@ -163,8 +156,6 @@ DateTime now;
 *
 */
 
-//#include <OneWire.h>
-//#include <DallasTemperature.h>
 
 // Data wire is plugged into pin 6 on the Arduino
 #define ONE_WIRE_BUS ONE_WIRE_PIN
@@ -175,9 +166,6 @@ OneWire oneWire(ONE_WIRE_BUS);
 // Pass our oneWire reference to Dallas Temperature.
 DallasTemperature sensors(&oneWire);
 
-// Assign the addresses of your 1-Wire temp sensors.
-// See the tutorial on how to obtain these addresses:
-// http://www.hacktronics.com/Tutorials/arduino-1-wire-address-finder.html
 
 
 /** *************************************
@@ -193,10 +181,11 @@ byte this_weekday;
 byte last_error_code = ERR_NO;
 byte pump_open = 0;
 byte this_slot = 0;
+const uint8_t eeprom_id = 0x99;
 
 // Temperatures
 // TODO: configurable
-uint16_t T[] = {500, 1500, 1800, 2800};
+uint16_t T[] = {500, 1500, 1800, 2000};
 uint16_t hot_temp, cold_temp;
 
 // Programs
@@ -285,7 +274,7 @@ static byte weekly_program[WEEKLY_PROGRAM_NUMBER][3] = {
         {5, 7, 7}, // 5 (5+2)
         {5, 5, 7}, // 5 (6+1)
         {6, 7, 7}, // 6 (5+2)
-        {6, 6, 7} // 6 (6+1)
+        {6, 6, 7}  // 6 (6+1)
 };
 
 
@@ -398,7 +387,7 @@ void check_temperatures(){
         char new_status = rooms[i].status;
         needs_heating = (new_status == OPENING);
         if(!needs_heating){
-            needs_heating = get_desired_temperature(i) + (new_status == OPEN ? HYSTERESIS : - HYSTERESIS);
+            needs_heating = rooms[i].temperature < (get_desired_temperature(i) + (new_status == OPEN ? HYSTERESIS : - HYSTERESIS));
         }
         if(!needs_heating){
             new_status = CLOSED;
@@ -445,6 +434,22 @@ void check_temperatures(){
 }
 
 
+/**
+ * Store config to EEPROM
+ */
+int store_config(){
+    // Read EEPROM
+    int write = 0;
+    write += EEPROM_writeAnything(write, eeprom_id);
+    write += EEPROM_writeAnything(write, T);
+    write += EEPROM_writeAnything(write, slot);
+    write += EEPROM_writeAnything(write, weekly_program);
+    write += EEPROM_writeAnything(write, daily_program);
+    for (int i=0; i<ROOMS; i++){
+        write += EEPROM_writeAnything(write, rooms[i].program);
+    }
+}
+
 
 /**
  * Set up
@@ -476,11 +481,25 @@ void thermo_setup(){
     pinMode(BEAT_PIN, OUTPUT);
     t.oscillate(BEAT_PIN, 1000, 1);
 
+    // Read EEPROM
+    if(EEPROM.read(0) == eeprom_id){
+        int read = 1;
+        read +=  EEPROM_readAnything(read, T);
+        read += EEPROM_readAnything(read, slot);
+        read += EEPROM_readAnything(read, weekly_program);
+        read += EEPROM_readAnything(read, daily_program);
+        for (int i=0; i<ROOMS; i++){
+            read += EEPROM_readAnything(read, rooms[i].program);
+        }
+    } else {
+        store_config();
+    }
 }
 
 void thermo_loop(){
     t.update();
 }
+
 
 
 /** ********************************************************
@@ -493,7 +512,6 @@ byte Ethernet::buffer[BUFFER_SIZE];
 BufferFiller bfill;
 
 
-//---Predisposizione--------------------------------------------------------
 void setup(){
 
     if (ether.begin(sizeof Ethernet::buffer, mymac,10) == 0) {
@@ -509,8 +527,10 @@ void setup(){
 }
 
 
-
-// variables created by the build process when compiling the sketch
+/**
+ * Returns the amount of free memory,
+ * variables created by the build process when compiling the sketch
+ */
 int freeMemory () {
   extern int __heap_start, *__brkval;
   int v;
@@ -556,8 +576,6 @@ uint8_t find_key_val(char *str,char *key){
   }
   return(found);
 }
-
-
 
 
 
@@ -796,6 +814,7 @@ void loop(){
                 break;
                 case CMD_WRITE_EEPROM:
                     // Write to EEPROM
+                    store_config();
                 break;
                 // Set daily_program for a given weekly_program
                 case CMD_W_PGM_SET_D_PGM:
@@ -816,7 +835,24 @@ void loop(){
                         last_error_code = ERR_WRONG_PARM;
                     }
                 break;
+                // Set T level for a given slot on a given daily program
                 case CMD_D_PGM_SET_T_PGM:
+                    parm1 = analyse_cmd(data, "p");
+                    if(in_range(parm1, 0, DAILY_PROGRAM_NUMBER - 1)){
+                        parm2 = analyse_cmd(data, "v"); // Slot (0 -7)
+                        if(in_range(parm2, 0, 7)){
+                            parm3 = analyse_cmd(data, "v");
+                            if(in_range(parm3, 0, 3)){ // T level
+                                daily_program[parm1][0] &= ! (B10000000 >> parm2);
+                                daily_program[parm1][1] &= ! (B10000000 >> parm2);
+                                daily_program[parm1][2] &= ! (B10000000 >> parm2);
+                                daily_program[parm1][3] &= ! (B10000000 >> parm2);
+                                daily_program[parm1][parm3] |= (B10000000 >> parm2);
+                            }
+                        }
+                    } else {
+                        last_error_code = ERR_WRONG_PARM;
+                    }
                     // Write to EEPROM
                 break;
                 case CMD_SLOT_SET_UPPER_BOUND:
@@ -828,7 +864,7 @@ void loop(){
                     if(in_range(parm2, 1, 3)){
                         last_error_code = ERR_WRONG_PARM;
                     } else {
-                        parm2 = analyse_cmd(data, "v");
+                        parm2 = analyse_cmd(data, "v") * 100;
                         switch(parm1){
                             case 1:
                                 if(in_range(parm2, T[0] + 50, T[2] - 50)){
