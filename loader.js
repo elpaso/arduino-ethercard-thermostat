@@ -8,6 +8,9 @@ var room_names = [
 ];
 
 var UTC=2;
+var set_didx;
+var set_pidx;
+var set_slot;
 
 function loadScript(url, callback){
 
@@ -69,21 +72,24 @@ var  CMD_RESET = 5;
 var  CMD_W_PGM_SET_D_PGM =  6;
 var  CMD_D_PGM_SET_T_PGM = 7;
 var  CMD_SLOT_SET_UPPER_BOUND = 8;
+var  CMD_CLEAR_EEPROM = 9;
 
-
-function ws_call(cmd, parms){
+function ws_call(cmd, parms, callback){
     var url = "/?c="+cmd;
     parms = parms || [];
+    callback = callback || function(data){console.log(data);};
     if(parms.length){
         url += '&p=' + parms[0];
     }
-    for(var i=1; i<parms.length; i++){
-       url += '&v=' + parms[i];
+    if(parms.length > 1){
+        url += '&v=' + parms[1];
+    }
+    if(parms.length > 2){
+        url += '&w=' + parms[2];
     }
     $.getJSON( url ,
-        function(data) {
-            console.log(data);
-    });
+        callback
+    );
 }
 
 function set_time(){
@@ -112,6 +118,22 @@ function change_program(pgm){
 function eeprom_write(){
     ws_call(CMD_WRITE_EEPROM);
 }
+
+function eeprom_clear(){
+    ws_call(CMD_CLEAR_EEPROM);
+}
+
+
+
+function change_dpt(value){
+    $('#t-dlg-page').dialog('close');
+    ws_call(CMD_D_PGM_SET_T_PGM, [set_pidx, set_slot, value], function(){
+        $.getJSON( "/programs" , function(data) {
+            json_data.programs = data;
+        });
+    });
+}
+
 
 // Global
 var json_data = {};
@@ -144,8 +166,27 @@ var page_tpl = '\
             </thead>\
             <tbody id="program-${pidx}-tbody">\
             {{each day}}\
-                <tr><th>${day_name}</th>{{each temperature}}<td id="PT-${pidx}-${didx}-${tidx}" class="T${tindex}">${value}°</td>{{/each}}</tr>\
+                <tr><th>${day_name}</th>{{each temperature}}<td  class="pgm-T" id="PT-${pidx}-${didx}-${tidx}" class="T${tindex}">${value}°</td>{{/each}}</tr>\
             {{/each}}\
+            </tbody>\
+        </table>\
+    </div>\
+  </div>\
+</script>\
+\
+\
+<script id="daily-program-dlg-tpl" type="text/x-jquery-tmpl">\
+ <div id="daily-program-${dpidx}-page" data-role="page" data-theme="b">\
+    <div data-role="header">\
+        <h1>Programma giornaliero ${dpidx}</h1>\
+    </div>\
+    <div data-role="content">\
+        <table class="program-table">\
+            <thead>\
+                <tr><th>0/{{each slot}}${value}</th><th id="slot-${sidx}">${value}/{{/each}}24</th></tr>\
+            </thead>\
+            <tbody id="program-${dpidx}-tbody">\
+                <tr>{{each temperature}}<td  class="dpgm-T T${tindex}" id="DPT-${dpidx}-${$index}">${tvalue}°</td>{{/each}}</tr>\
             </tbody>\
         </table>\
     </div>\
@@ -165,7 +206,20 @@ var page_tpl = '\
   </div>\
 </script>\
 \
-<div id="home-page" data-role="page" data-theme="b">\
+\
+<script id="t-dlg-tpl" type="text/x-jquery-tmpl">\
+ <div id="t-dlg-page" data-role="page" data-theme="b">\
+    <div data-role="header">\
+        <h1>Scegli la nuova temperatura</h1>\
+    </div>\
+    <div data-role="content">\
+        <ul id="t-menu" data-role="listview" data-filter="false">\
+             {{each temperature}}<li><a class="T${$index}" href="javascript:change_dpt(${$index}, this)">${$value}° <span class="current">(attuale)</span></a></li>{{/each}}\
+        </ul>\
+    </div>\
+  </div>\
+</script>\
+\<div id="home-page" data-role="page" data-theme="b">\
     <div data-role="header">\
         <h1>Riscaldamento</h1>\
     </div>\
@@ -176,11 +230,9 @@ var page_tpl = '\
         </div>\
         <h3>Mandata: <span id="hot"></span>°C &mdash; ritorno: <span id="cold"></span>°C</h3>\
         <h3>Data: <span id="data"></span> <a onclick="javascript:set_date()" data-role="button" data-inline="true" data-transition="fade" href="#">Sincronizza con il dispositivo</a></h3><h3>Ora: <span id="ora"></span> <a onclick="javascript:set_time()" data-role="button" data-inline="true" data-transition="fade" href="#">Sincronizza con il dispositivo</a></h2>\
-        <ul id="main-menu" data-role="listview" data-inset="true" data-filter="false">\
-            <li><a href="#rooms-page">Stanze</a></li>\
-            <li><a href="#setup-page">Impostazioni</a></li>\
-            <li><a href="#stats-page">Statistiche</a></li>\
-        </ul>\
+            <p><a href="#rooms-page" data-icon="arrow-r" data-role="button">Stanze</a></p>\
+            <p><a href="#setup-page" data-icon="arrow-r" data-role="button">Impostazioni</a></p>\
+            <p><a href="#stats-page" data-icon="arrow-r" data-role="button">Statistiche</a></p>\
     </div>\
 </div>\
 <div id="rooms-page" data-role="page" data-theme="b">\
@@ -193,18 +245,54 @@ var page_tpl = '\
         <p><a href="#home-page" data-direction="reverse" data-role="button" data-icon="back">Home</a></p>\
     </div>\
 </div>\
+\
+<script id="program-list-tpl" type="text/x-jquery-tmpl">\
+ <div id="setup-page-programs" data-role="page" data-theme="b">\
+    <div data-role="header">\
+        <h1>Scegli il programma</h1>\
+    </div>\
+    <div data-role="content">\
+        <ul id="program-menu" data-role="listview" data-inset="true" data-filter="false">\
+            {{each program}}<li><a  data-rel="dialog" href="#daily-program-${pidx}-page">${name}</a></li>{{/each}}\
+        </ul>\
+    </div>\
+    <p><a href="#setup-page" data-direction="reverse" data-role="button"  data-icon="back">Impostazioni</a></p>\
+  </div>\
+</script>\
+\
+\
+<script id="daily-program-list-tpl" type="text/x-jquery-tmpl">\
+ <div id="setup-page-programs" data-role="page" data-theme="b">\
+    <div data-role="header">\
+        <h1>Scegli il programma</h1>\
+    </div>\
+    <div data-role="content">\
+        <ul id="daily-program-menu" data-role="listview" data-inset="true" data-filter="false">\
+            {{each program}}<li><a  data-rel="dialog" href="#daily-program-${$index}-page">Programma giornaliero ${$index}</a></li>{{/each}}\
+        </ul>\
+    </div>\
+    <p><a href="#setup-page" data-direction="reverse" data-role="button"  data-icon="back">Impostazioni</a></p>\
+  </div>\
+</script>\
+\
 <div id="setup-page" data-role="page" data-theme="b">\
     <div data-role="header">\
         <h1>Impostazioni</h1>\
     </div>\
     <div data-role="content">\
-    <a onclick="javascript:eeprom_write()" data-role="button" data-transition="fade" href="#">Salva in EEPROM</a>\
-        <div data-role="fieldcontain">\
-            <label for="switch-a">Prova:</label><select name="switch-a" id="switch-a" data-role="slider">\
-                <option value="off">Off</option>\
-                <option value="on">On</option>\
-            </select> \
-        </div>\
+        <p><a href="#setup-page-temp"  data-icon="arrow-r" data-role="button">Temperature</a></p>\
+        <p><a href="#setup-page-programs"  data-icon="arrow-r" data-role="button">Programmi giornalieri</a></p>\
+        <p><a onclick="javascript:eeprom_write()" data-role="button" data-transition="fade" data-icon="alert" href="#">Salva in EEPROM</a></p>\
+        <p><a onclick="javascript:eeprom_clear()" data-role="button" data-transition="fade" data-icon="alert" href="#">Cancella la EEPROM (reset)</a></p>\
+        <p><a href="#home-page" data-direction="reverse" data-role="button"  data-icon="back">Home</a></p>\
+    </div>\
+</div>\
+<div id="setup-page-temp" data-role="page" data-theme="b">\
+    <div data-role="header">\
+        <h1>Temperature</h1>\
+    </div>\
+    <div data-role="content">\
+    <p><a href="#setup-page" data-direction="reverse" data-role="button"  data-icon="back">Impostazioni</a></p>\
         <div data-role="fieldcontain">\
             <label for="slider-T1">T1 (economy)</label>\
             <input type="range" name="slider-T1" id="slider-T1" value="" step="0.5" min="5" max="25"  />\
@@ -308,25 +396,34 @@ function update_gui(){
             //console.log("Lu-Ve", json_data.programs.d[v1[0]]);
             //console.log(get_t(json_data.programs.d[v1[0]], slot));
             $.each([0, 1, 2, 3, 4], function(didx,v2){    // Mo - Fr
-                var tindex = get_t(json_data.programs.d[v1[2]], slot);
-                $('#PT-' + pidx + '-' + didx + '-' + slot).html(json_data.programs.T[tindex]);
-                $('#PT-' + pidx + '-' + didx + '-' + slot).removeClass();
+                var tindex = get_t(json_data.programs.d[v1[0]], slot);
+                $('#PT-' + pidx + '-' + didx + '-' + slot).html(json_data.programs.T[tindex] + '°');
+                $('#PT-' + pidx + '-' + didx + '-' + slot).removeClass("T0 T1 T2 T3");
                 $('#PT-' + pidx + '-' + didx + '-' + slot).addClass('T' + tindex);
+                $('#DPT-' + pidx + '-' + slot).html(json_data.programs.T[tindex] + '°');
+                $('#DPT-' + pidx + '-' + slot).addClass('T' + tindex);
+                $('#DPT-' + pidx + '-' + slot).removeClass("T0 T1 T2 T3");
             });
             //console.log("Sa", json_data.programs.d[v1[1]]);
             //console.log(get_t(json_data.programs.d[v1[1]], slot));
             didx = 5;
             var tindex = get_t(json_data.programs.d[v1[1]], slot);
-            $('#PT-' + pidx + '-' + didx + slot).html(json_data.programs.T[tindex]);
-            $('#PT-' + pidx + '-' + didx + '-' + slot).removeClass();
+            $('#PT-' + pidx + '-' + didx + '-' + slot).html(json_data.programs.T[tindex] + '°');
+            $('#PT-' + pidx + '-' + didx + '-' + slot).removeClass("T0 T1 T2 T3");
             $('#PT-' + pidx + '-' + didx + '-' + slot).addClass('T' + tindex);
+            $('#DPT-' + pidx + '-' + slot).html(json_data.programs.T[tindex] + '°');
+            $('#DPT-' + pidx + '-' + slot).removeClass("T0 T1 T2 T3");
+            $('#DPT-' + pidx + '-' + slot).addClass('T' + tindex);
             //console.log("Do", json_data.programs.d[v1[2]]);
             //console.log(get_t(json_data.programs.d[v1[2]], slot));
             didx = 6;
             var tindex = get_t(json_data.programs.d[v1[2]], slot);
-            $('#PT-' + pidx + '-' + didx + slot).html(json_data.programs.T[tindex]);
-            $('#PT-' + pidx + '-' + didx + '-' + slot).removeClass();
+            $('#PT-' + pidx + '-' + didx + '-' + slot).html(json_data.programs.T[tindex] + '°');
+            $('#PT-' + pidx + '-' + didx + '-' + slot).removeClass("T0 T1 T2 T3");
             $('#PT-' + pidx + '-' + didx + '-' + slot).addClass('T' + tindex);
+            $('#DPT-' + pidx + '-' + slot).html(json_data.programs.T[tindex] + '°');
+            $('#DPT-' + pidx + '-' + slot).removeClass("T0 T1 T2 T3");
+            $('#DPT-' + pidx + '-' + slot).addClass('T' + tindex);
         });
 
     });
@@ -396,11 +493,29 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
 
                                 pgms.push(p);
                             });
+
+                            var daily_pgms = [];
+                            $.each(json_data.programs.d, function(k,temps){
+                                var pgm = [];
+                                $.each(slots, function(slot, value){
+                                    var tindex = get_t(temps, slot);
+                                    pgm.push({'tindex' : tindex, 'tvalue': json_data.programs.T[tindex]});
+                                });
+                                daily_pgms.push({'dpidx': k, 'temperature': pgm, 'slot' : slot});
+                            });
+
                             $( "#program-tpl" ).tmpl(pgms).appendTo(document.getElementsByTagName("body")[0]);
+
                             $( "#program-dlg-tpl" ).tmpl({program: pgms}).appendTo(document.getElementsByTagName("body")[0]);
 
+                            $( "#daily-program-list-tpl" ).tmpl({program: daily_pgms}).appendTo(document.getElementsByTagName("body")[0]);
+
+                            $( "#t-dlg-tpl" ).tmpl({temperature: data.T }).appendTo(document.getElementsByTagName("body")[0]);
+
+                            $( "#daily-program-dlg-tpl" ).tmpl(daily_pgms).appendTo(document.getElementsByTagName("body")[0]);
+
                             // Setup events
-                            $('#setup-page').page();
+                            $('#setup-page-temp').page();
                             $( ".ui-slider" ).bind( "vmouseup", function(event, ui) {
                                 var el = $(event.currentTarget).siblings('input')[0];
                                 var id = el.id.replace('slider-T', '');
@@ -408,6 +523,16 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                 json_data.programs.T[id] = val;
                                 // Call
                                 ws_call(CMD_TEMPERATURE_SET, [id, val]);
+                            });
+
+                            $('.dpgm-T').live('vclick', function(event, ui){
+                                $.mobile.changePage( "#t-dlg-page", { role: "dialog"} );
+                                var t = $(event.target).attr('class').match(/T(\d)/)[1];
+                                var a = event.target.id.split(/-/);
+                                set_pidx = a[1];
+                                set_slot = a[2];
+                                $("#t-dlg-page" + ' .current').hide();
+                                $("#t-dlg-page .T" + t + ' .current').show();
                             });
 
                             (function worker() {
@@ -419,7 +544,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                 },
                                 complete: function() {
                                 // Schedule the next request when the current one's complete
-                                    setTimeout(worker, 2000);
+                                    setTimeout(worker, 4000);
                                 }
                             });
                             })();

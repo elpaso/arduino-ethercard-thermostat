@@ -101,7 +101,7 @@ static char strbuf[STR_BUFFER_SIZE+1];
 
 #else
 
-#define TEMP_READ_INTERVAL 4000 // millis
+#define TEMP_READ_INTERVAL 10000 // millis
 #define VALVE_OPENING_TIME_S 120UL // 2 minutes
 #define BLOCKED_TIME_S 3600UL // 1 hour
 #define RISE_TEMP_TIME_S 300UL // 5 minutes
@@ -135,6 +135,7 @@ static char strbuf[STR_BUFFER_SIZE+1];
 #define CMD_W_PGM_SET_D_PGM 6
 #define CMD_D_PGM_SET_T_PGM 7
 #define CMD_SLOT_SET_UPPER_BOUND 8
+#define CMD_CLEAR_EEPROM 9
 
 //#include "Timer.h"
 Timer t;
@@ -391,7 +392,11 @@ void check_temperatures(){
         }
         if(!needs_heating){
             new_status = CLOSED;
-        } else {
+        } else { // Needs heating!!!
+            // Needs heating and target is T[0]: danger zone for pipe ice, unlock
+            if(pump_blocked_time && get_desired_temperature(i) == T[0]){
+                pump_blocked_time = 0;
+            }
             if(pump_blocked_time){
                new_status = BLOCKED;
             } else {
@@ -484,7 +489,7 @@ void thermo_setup(){
     // Read EEPROM
     if(EEPROM.read(0) == eeprom_id){
         int read = 1;
-        read +=  EEPROM_readAnything(read, T);
+        read += EEPROM_readAnything(read, T);
         read += EEPROM_readAnything(read, slot);
         read += EEPROM_readAnything(read, weekly_program);
         read += EEPROM_readAnything(read, daily_program);
@@ -754,7 +759,7 @@ void print_json_response(byte print_programs){
 }
 
 byte in_range(int num, int low, int high){
-    return low <= num && num <= high;
+    return (low <= num) && (num <= high);
 }
 
 /**
@@ -822,7 +827,7 @@ void loop(){
                     if(in_range(parm1, 0, WEEKLY_PROGRAM_NUMBER - 1)){
                         parm2 = analyse_cmd(data, "v"); // dayOfWeek (0=mo-fr,1=sa,2=su)
                         if(in_range(parm2, 0, 2)){
-                            parm3 = analyse_cmd(data, "v");
+                            parm3 = analyse_cmd(data, "w");
                             if(in_range(parm3, 0, DAILY_PROGRAM_NUMBER - 1)){
                                 weekly_program[parm1][parm2] = parm3;
                             } else {
@@ -837,18 +842,22 @@ void loop(){
                 break;
                 // Set T level for a given slot on a given daily program
                 case CMD_D_PGM_SET_T_PGM:
-                    parm1 = analyse_cmd(data, "p");
+                    parm1 = analyse_cmd(data, "p"); // Program index
                     if(in_range(parm1, 0, DAILY_PROGRAM_NUMBER - 1)){
                         parm2 = analyse_cmd(data, "v"); // Slot (0 -7)
                         if(in_range(parm2, 0, 7)){
-                            parm3 = analyse_cmd(data, "v");
+                            parm3 = analyse_cmd(data, "w");
                             if(in_range(parm3, 0, 3)){ // T level
-                                daily_program[parm1][0] &= ! (B10000000 >> parm2);
-                                daily_program[parm1][1] &= ! (B10000000 >> parm2);
-                                daily_program[parm1][2] &= ! (B10000000 >> parm2);
-                                daily_program[parm1][3] &= ! (B10000000 >> parm2);
+                                daily_program[parm1][0] &= ~(B10000000 >> parm2);
+                                daily_program[parm1][1] &= ~(B10000000 >> parm2);
+                                daily_program[parm1][2] &= ~(B10000000 >> parm2);
+                                daily_program[parm1][3] &= ~(B10000000 >> parm2);
                                 daily_program[parm1][parm3] |= (B10000000 >> parm2);
+                            } else {
+                                last_error_code = ERR_WRONG_PARM;
                             }
+                        } else {
+                            last_error_code = ERR_WRONG_PARM;
                         }
                     } else {
                         last_error_code = ERR_WRONG_PARM;
@@ -857,6 +866,9 @@ void loop(){
                 break;
                 case CMD_SLOT_SET_UPPER_BOUND:
                     // Write to EEPROM
+                break;
+                case CMD_CLEAR_EEPROM:
+                    EEPROM.write(0,0);
                 break;
                 case CMD_TEMPERATURE_SET:
                     // Set T1, T2 and T3
