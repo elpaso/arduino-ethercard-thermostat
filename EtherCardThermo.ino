@@ -7,6 +7,27 @@
 
 //#define DEBUG
 
+/** *****************************************
+ *  Pins
+ *
+ */
+
+// Pins
+#define ONE_WIRE_PIN 0
+#define COLD_PIN 3 // Analog
+#define HOT_PIN 2 // Analog
+#define ETHERNET_CS_PIN 10
+#define BEAT_PIN A1 // Digital connected to Analog 1
+
+// Relay
+#define PUMP_PIN 3
+#define ROOM_1_PIN 4
+#define ROOM_2_PIN 5
+#define ROOM_3_PIN 6
+#define ROOM_4_PIN 7
+#define ROOM_5_PIN 8
+
+#define LOADER_ADDRESS "http://localhost/~ale/thermoduino/loader.js"
 
 #include "EtherCard.h"
 
@@ -73,20 +94,6 @@ static char strbuf[STR_BUFFER_SIZE+1];
 #define DAILY_PROGRAM_NUMBER 8
 #define SLOT_NUMBER 8
 
-// Pins
-#define ONE_WIRE_PIN 9
-#define PUMP_PIN 1
-#define COLD_PIN 3
-#define HOT_PIN 2
-
-#define BEAT_PIN 8
-
-#define ROOM_1_PIN 2
-#define ROOM_2_PIN 3
-#define ROOM_3_PIN 4
-#define ROOM_4_PIN 5
-#define ROOM_5_PIN 6
-
 // TODO: move to config
 
 #ifdef DEBUG
@@ -110,7 +117,7 @@ static char strbuf[STR_BUFFER_SIZE+1];
 
 #define HYSTERESIS 50
 #define MAX_ALLOWED_T 2500 // in cents
-#define RISE_TEMP_DELTA 200 // Minimum difference
+#define RISE_TEMP_DELTA 200 // Minimum difference in cents
 
 
 // Room status
@@ -136,6 +143,10 @@ static char strbuf[STR_BUFFER_SIZE+1];
 #define CMD_D_PGM_SET_T_PGM 7
 #define CMD_SLOT_SET_UPPER_BOUND 8
 #define CMD_CLEAR_EEPROM 9
+#define CMD_SET_RISE_TEMP_TIME_S 10
+#define CMD_SET_RISE_TEMP_DELTA 11
+#define CMD_SET_BLOCKED_TIME_S 12
+#define CMD_SET_HYSTERESIS 13
 
 //#include "Timer.h"
 Timer t;
@@ -178,6 +189,10 @@ DallasTemperature sensors(&oneWire);
 // Global time (minutes from 0)
 uint32_t pump_blocked_time = 0;
 uint32_t pump_open_time = 0;
+uint32_t blocked_time_s = BLOCKED_TIME_S;
+uint32_t rise_temp_time_s = RISE_TEMP_TIME_S;
+uint16_t rise_temp_delta = RISE_TEMP_DELTA;
+uint16_t hysteresis = HYSTERESIS;
 byte this_weekday;
 byte last_error_code = ERR_NO;
 byte pump_open = 0;
@@ -359,16 +374,16 @@ void check_temperatures(){
 
 
     // Check if can unlock
-    if(pump_blocked_time && (now.unixtime() > pump_blocked_time + BLOCKED_TIME_S)){
+    if(pump_blocked_time && (now.unixtime() > pump_blocked_time + blocked_time_s)){
         pump_blocked_time = 0;
     }
 
 
     // If the pump is not blocked and has been open more than RISE_TEMP_TIME_S,
     // check hot_temp and cold_temp
-    if(!pump_blocked_time && pump_open_time && (now.unixtime() - pump_open_time > RISE_TEMP_TIME_S)){
+    if(!pump_blocked_time && pump_open_time && (now.unixtime() - pump_open_time > rise_temp_time_s)){
         // Block if lower
-        if( hot_temp - cold_temp < RISE_TEMP_DELTA ){
+        if( hot_temp - cold_temp < rise_temp_delta ){
             pump_blocked_time = now.unixtime();
             pump_open = 0;
         }
@@ -388,7 +403,7 @@ void check_temperatures(){
         char new_status = rooms[i].status;
         needs_heating = (new_status == OPENING);
         if(!needs_heating){
-            needs_heating = rooms[i].temperature < (get_desired_temperature(i) + (new_status == OPEN ? HYSTERESIS : - HYSTERESIS));
+            needs_heating = rooms[i].temperature < (get_desired_temperature(i) + (new_status == OPEN ? hysteresis : 0));
         }
         if(!needs_heating){
             new_status = CLOSED;
@@ -453,6 +468,10 @@ int store_config(){
     for (int i=0; i<ROOMS; i++){
         write += EEPROM_writeAnything(write, rooms[i].program);
     }
+    write += EEPROM_writeAnything(write, rise_temp_time_s);
+    write += EEPROM_writeAnything(write, rise_temp_delta);
+    write += EEPROM_writeAnything(write, blocked_time_s);
+    write += EEPROM_writeAnything(write, hysteresis);
 }
 
 
@@ -496,6 +515,10 @@ void thermo_setup(){
         for (int i=0; i<ROOMS; i++){
             read += EEPROM_readAnything(read, rooms[i].program);
         }
+        read += EEPROM_readAnything(read, rise_temp_time_s);
+        read += EEPROM_readAnything(read, rise_temp_delta);
+        read += EEPROM_readAnything(read, blocked_time_s);
+        read += EEPROM_readAnything(read, hysteresis);
     } else {
         store_config();
     }
@@ -519,7 +542,7 @@ BufferFiller bfill;
 
 void setup(){
 
-    if (ether.begin(sizeof Ethernet::buffer, mymac,10) == 0) {
+    if (ether.begin(sizeof Ethernet::buffer, mymac, ETHERNET_CS_PIN) == 0) {
         t.oscillate(BEAT_PIN, 500, 1);
         while(1){
             t.update();
@@ -618,7 +641,9 @@ void print_homepage(){
   print_200ok();
   bfill.emit_p(PSTR("<!DOCTYPE html><html><head></head><body>"));
   bfill.emit_p(PSTR("<h1>EtherShieldThermo</h1>"));
-  bfill.emit_p(PSTR("<script src=\"http://localhost/~ale/thermoduino/loader.js\"></script>"));
+  bfill.emit_p(PSTR("<script src=\""));
+  bfill.emit_p(PSTR(LOADER_ADDRESS));
+  bfill.emit_p(PSTR("\"></script>"));
   bfill.emit_p(PSTR("</body></head></html>"));
 }
 
@@ -696,6 +721,18 @@ void print_json_response(byte print_programs){
         bfill.emit_p( PSTR("{\"T\":"));
         json_array_wrap(T, 4);
 
+        bfill.emit_p(PSTR(",\"r\":$S"),
+            decimal_string(rise_temp_delta, strbuf));
+
+        bfill.emit_p(PSTR(",\"h\":$S"),
+            decimal_string(hysteresis, strbuf));
+
+        ultoa(rise_temp_time_s, strbuf, 10);
+        bfill.emit_p(PSTR(",\"t\":$S"), strbuf);
+
+        ultoa(blocked_time_s, strbuf, 10);
+        bfill.emit_p(PSTR(",\"b\":$S"), strbuf);
+
         bfill.emit_p( PSTR(",\"s\":"));
         json_array_wrap(slot, SLOT_NUMBER - 1);
 
@@ -722,7 +759,7 @@ void print_json_response(byte print_programs){
             strbuf,
             (int)this_slot);
 
-        ultoa((pump_blocked_time ? (pump_blocked_time + BLOCKED_TIME_S) : 0UL), strbuf, 10);
+        ultoa((pump_blocked_time ? (pump_blocked_time + blocked_time_s) : 0UL), strbuf, 10);
         bfill.emit_p(PSTR("\"b\":$S,"),
             strbuf);
 
@@ -864,6 +901,39 @@ void loop(){
                     }
                     // Write to EEPROM
                 break;
+                case CMD_SET_RISE_TEMP_TIME_S:
+                    parm1 = analyse_cmd(data, "p");
+                    if(in_range(parm1, 120, 1200)){ // Seconds
+                        rise_temp_time_s = parm1;
+                    } else {
+                        last_error_code = ERR_WRONG_PARM;
+                    }
+                break;
+                case CMD_SET_BLOCKED_TIME_S:
+                    parm1 = analyse_cmd(data, "p");
+                    if(in_range(parm1, 1800, 7200)){ // Seconds
+                        blocked_time_s = parm1;
+                    } else {
+                        last_error_code = ERR_WRONG_PARM;
+                    }
+
+                break;
+                case CMD_SET_HYSTERESIS:
+                    parm1 = analyse_cmd(data, "p");
+                    if(in_range(parm1, 0, 2000)){
+                        hysteresis = parm1;
+                    } else {
+                        last_error_code = ERR_WRONG_PARM;
+                    }
+                break;
+                case CMD_SET_RISE_TEMP_DELTA:
+                    parm1 = analyse_cmd(data, "p");
+                    if(in_range(parm1, 100, 2000)){
+                        rise_temp_delta = parm1;
+                    } else {
+                        last_error_code = ERR_WRONG_PARM;
+                    }
+                break;
                 case CMD_SLOT_SET_UPPER_BOUND:
                     // Write to EEPROM
                 break;
@@ -873,10 +943,10 @@ void loop(){
                 case CMD_TEMPERATURE_SET:
                     // Set T1, T2 and T3
                     parm1 = analyse_cmd(data, "p");
-                    if(in_range(parm2, 1, 3)){
+                    if(!in_range(parm1, 1, 3)){
                         last_error_code = ERR_WRONG_PARM;
                     } else {
-                        parm2 = analyse_cmd(data, "v") * 100;
+                        parm2 = analyse_cmd(data, "v");
                         switch(parm1){
                             case 1:
                                 if(in_range(parm2, T[0] + 50, T[2] - 50)){

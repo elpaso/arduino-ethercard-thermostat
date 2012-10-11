@@ -48,13 +48,14 @@ headID.appendChild(newTitle);
 
 
 var newStyle = document.createElement('style');
-newStyle.innerHTML +='table.program-table td {border: solid 1px white; text-align:center;}'
-newStyle.innerHTML +='table.program-table th {border: solid 1px white; text-align:center;}'
-newStyle.innerHTML +='table.program-table {border-collapse: collapse;}'
-newStyle.innerHTML +='.T0 {background-color: #99FFFF;}'
-newStyle.innerHTML +='.T1 {background-color: #FFFF33;}'
-newStyle.innerHTML +='.T2 {background-color: #FF6600;}'
-newStyle.innerHTML +='.T3 {background-color: #FF0000;text-shadow: none !important;}'
+newStyle.innerHTML +='table.program-table td {border: solid 1px white; text-align:center;}';
+newStyle.innerHTML +='table.program-table th {border: solid 1px white; text-align:center;}';
+newStyle.innerHTML +='table.program-table {border-collapse: collapse;}';
+newStyle.innerHTML +='.T0 {background-color: #99FFFF;}';
+newStyle.innerHTML +='.T1 {background-color: #FFFF33;}';
+newStyle.innerHTML +='.T2 {background-color: #FF6600;}';
+newStyle.innerHTML +='.T3 {background-color: #FF0000;text-shadow: none !important;}';
+
 headID.appendChild(newStyle);
 
 
@@ -73,6 +74,11 @@ var  CMD_W_PGM_SET_D_PGM =  6;
 var  CMD_D_PGM_SET_T_PGM = 7;
 var  CMD_SLOT_SET_UPPER_BOUND = 8;
 var  CMD_CLEAR_EEPROM = 9;
+var  CMD_SET_RISE_TEMP_TIME_S = 10;
+var  CMD_SET_RISE_DELTA = 11;
+var  CMD_SET_BLOCKED_TIME_S = 12
+var  CMD_SET_HYSTERESIS = 13
+
 
 function ws_call(cmd, parms, callback){
     var url = "/?c="+cmd;
@@ -120,7 +126,9 @@ function eeprom_write(){
 }
 
 function eeprom_clear(){
-    ws_call(CMD_CLEAR_EEPROM);
+    if(confirm('Cancella la EEPROM?\nRiavviando la scheda verranno caricate le impostazioni di default.')){
+        ws_call(CMD_CLEAR_EEPROM);
+    }
 }
 
 
@@ -130,6 +138,7 @@ function change_dpt(value){
     ws_call(CMD_D_PGM_SET_T_PGM, [set_pidx, set_slot, value], function(){
         $.getJSON( "/programs" , function(data) {
             json_data.programs = data;
+            update_gui();
         });
     });
 }
@@ -219,32 +228,7 @@ var page_tpl = '\
     </div>\
   </div>\
 </script>\
-\<div id="home-page" data-role="page" data-theme="b">\
-    <div data-role="header">\
-        <h1>Riscaldamento</h1>\
-    </div>\
-    <div data-role="content">\
-        <h2>Pompa centrale: <span id="pump-status"></span></h2>\
-        <div id="blocked" style="display: none; color: red"><h2>Sistema bloccato!</h2>\
-            <p>Sblocco alle <b id="unlock-time"></b></p>\
-        </div>\
-        <h3>Mandata: <span id="hot"></span>°C &mdash; ritorno: <span id="cold"></span>°C</h3>\
-        <h3>Data: <span id="data"></span> <a onclick="javascript:set_date()" data-role="button" data-inline="true" data-transition="fade" href="#">Sincronizza con il dispositivo</a></h3><h3>Ora: <span id="ora"></span> <a onclick="javascript:set_time()" data-role="button" data-inline="true" data-transition="fade" href="#">Sincronizza con il dispositivo</a></h2>\
-            <p><a href="#rooms-page" data-icon="arrow-r" data-role="button">Stanze</a></p>\
-            <p><a href="#setup-page" data-icon="arrow-r" data-role="button">Impostazioni</a></p>\
-            <p><a href="#stats-page" data-icon="arrow-r" data-role="button">Statistiche</a></p>\
-    </div>\
-</div>\
-<div id="rooms-page" data-role="page" data-theme="b">\
-    <div data-role="header">\
-        <h1>Controllo stanze</h1>\
-    </div>\
-    <div data-role="content">\
-        <ul id="rooms-list" data-role="listview" data-inset="true" data-filter="false">\
-        </ul>\
-        <p><a href="#home-page" data-direction="reverse" data-role="button" data-icon="back">Home</a></p>\
-    </div>\
-</div>\
+\
 \
 <script id="program-list-tpl" type="text/x-jquery-tmpl">\
  <div id="setup-page-programs" data-role="page" data-theme="b">\
@@ -275,6 +259,45 @@ var page_tpl = '\
   </div>\
 </script>\
 \
+\
+<!-- End Scripts -->\
+\
+\
+<div data-role="content">\
+    <div class="message-box">\
+        <div class="inner">\
+            <p id="msg-txt"></p>\
+        </div>\
+    </div>\
+</div>\
+\
+\<div id="home-page" data-role="page" data-theme="b">\
+    <div data-role="header">\
+        <h1>Riscaldamento</h1>\
+    </div>\
+    <div data-role="content">\
+        <h2>Pompa centrale: <span id="pump-status"></span></h2>\
+        <div id="blocked" style="display: none; color: red"><h2>Sistema bloccato!</h2>\
+            <p>Sblocco alle <b id="unlock-time"></b></p>\
+        </div>\
+        <h3>Mandata: <span id="hot"></span>°C &mdash; ritorno: <span id="cold"></span>°C</h3>\
+        <h3>Data: <span id="data"></span> <a onclick="javascript:set_date()" data-role="button" data-inline="true" data-transition="fade" href="#">Sincronizza con il dispositivo</a></h3><h3>Ora: <span id="ora"></span> <a onclick="javascript:set_time()" data-role="button" data-inline="true" data-transition="fade" href="#">Sincronizza con il dispositivo</a></h2>\
+            <p><a href="#rooms-page" data-icon="arrow-r" data-role="button">Stanze</a></p>\
+            <p><a href="#setup-page" data-icon="arrow-r" data-role="button">Impostazioni</a></p>\
+            <p><a href="#stats-page" data-icon="arrow-r" data-role="button">Statistiche</a></p>\
+    </div>\
+</div>\
+<div id="rooms-page" data-role="page" data-theme="b">\
+    <div data-role="header">\
+        <h1>Controllo stanze</h1>\
+    </div>\
+    <div data-role="content">\
+        <ul id="rooms-list" data-role="listview" data-inset="true" data-filter="false">\
+        </ul>\
+        <p><a href="#home-page" data-direction="reverse" data-role="button" data-icon="back">Home</a></p>\
+    </div>\
+</div>\
+\
 <div id="setup-page" data-role="page" data-theme="b">\
     <div data-role="header">\
         <h1>Impostazioni</h1>\
@@ -293,17 +316,33 @@ var page_tpl = '\
     </div>\
     <div data-role="content">\
     <p><a href="#setup-page" data-direction="reverse" data-role="button"  data-icon="back">Impostazioni</a></p>\
-        <div data-role="fieldcontain">\
+        <div data-role="fieldcontain" class="T">\
             <label for="slider-T1">T1 (economy)</label>\
             <input type="range" name="slider-T1" id="slider-T1" value="" step="0.5" min="5" max="25"  />\
         </div>\
-        <div data-role="fieldcontain">\
+        <div data-role="fieldcontain" class="T">\
             <label for="slider-T2">T2 (normal)</label>\
             <input type="range" name="slider-T2" id="slider-T2" value="" step="0.5" min="5" max="25"  />\
         </div>\
-        <div data-role="fieldcontain">\
+        <div data-role="fieldcontain" class="T">\
             <label for="slider-T3">T3 (comfort)</label>\
             <input type="range" name="slider-T3" id="slider-T3" value="" step="0.5" min="5" max="25"  />\
+        </div>\
+        <div data-role="fieldcontain" class="r">\
+            <label for="slider-DELTA">Diff. °C mandata/ritorno</label>\
+            <input type="range" name="slider-DELTA" id="slider-DELTA" value="" step="0.5" min="1" max="20"  />\
+        </div>\
+        <div data-role="fieldcontain" class="t">\
+            <label for="slider-TIME">Tempo blocco (secondi)</label>\
+            <input type="range" name="slider-TIME" id="slider-TIME" value="" step="10" min="120" max="1200"  />\
+        </div>\
+        <div data-role="fieldcontain" class="b">\
+            <label for="slider-BLOCK">Tempo sblocco (secondi)</label>\
+            <input type="range" name="slider-BLOCK" id="slider-BLOCK" value="" step="10" min="1800" max="7200"  />\
+        </div>\
+        <div data-role="fieldcontain" class="h">\
+            <label for="slider-HYST">Isteresi</label>\
+            <input type="range" name="slider-HYST" id="slider-HYST" value="" step="0.5" min="0" max="20"  />\
         </div>\
         <p><a href="#home-page" data-direction="reverse" data-role="button"  data-icon="back">Home</a></p>\
     </div>\
@@ -319,6 +358,7 @@ var room_status = {
   'B': 'Blocco',
   'C': 'Nessuna richiesta di calore'
 };
+
 
 
 var room_daily_program_names = [
@@ -434,6 +474,12 @@ function update_gui(){
         }
     });
 
+
+    $('#slider-BLOCK').val(json_data.programs.b).slider('refresh');
+    $('#slider-TIME').val(json_data.programs.t).slider('refresh');
+    $('#slider-DELTA').val(json_data.programs.r).slider('refresh');
+    $('#slider-HYST').val(json_data.programs.h).slider('refresh');
+
     // Slot
     $.each(json_data.programs.s, function(k,v){
         $('slot-' + k).html(Math.floor(v/60) + ((v%60) ? ':' + (v%60) : ''));
@@ -516,13 +562,46 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
 
                             // Setup events
                             $('#setup-page-temp').page();
-                            $( ".ui-slider" ).bind( "vmouseup", function(event, ui) {
+                            $( ".T .ui-slider" ).bind( "vmouseup", function(event, ui) {
                                 var el = $(event.currentTarget).siblings('input')[0];
                                 var id = el.id.replace('slider-T', '');
                                 var val = $(el).val();
                                 json_data.programs.T[id] = val;
                                 // Call
-                                ws_call(CMD_TEMPERATURE_SET, [id, val]);
+                                ws_call(CMD_TEMPERATURE_SET, [id, val * 100]);
+                            });
+
+
+                            $( ".b .ui-slider" ).bind( "vmouseup", function(event, ui) {
+                                var el = $(event.currentTarget).siblings('input')[0];
+                                var val = $(el).val();
+                                json_data.programs.b = val;
+                                // Call
+                                ws_call(CMD_SET_BLOCKED_TIME_S, [parseInt(val)]);
+                            });
+
+                            $( ".t .ui-slider" ).bind( "vmouseup", function(event, ui) {
+                                var el = $(event.currentTarget).siblings('input')[0];
+                                var val = $(el).val();
+                                json_data.programs.t = val;
+                                // Call
+                                ws_call(CMD_SET_RISE_TEMP_TIME_S, [parseInt(val)]);
+                            });
+
+                            $( ".r .ui-slider" ).bind( "vmouseup", function(event, ui) {
+                                var el = $(event.currentTarget).siblings('input')[0];
+                                var val = $(el).val();
+                                json_data.programs.r = val;
+                                // Call
+                                ws_call(CMD_SET_RISE_DELTA, [val * 100]);
+                            });
+
+                            $( ".h .ui-slider" ).bind( "vmouseup", function(event, ui) {
+                                var el = $(event.currentTarget).siblings('input')[0];
+                                var val = $(el).val();
+                                json_data.programs.h = val;
+                                // Call
+                                ws_call(CMD_SET_HYSTERESIS, [val * 100]);
                             });
 
                             $('.dpgm-T').live('vclick', function(event, ui){
