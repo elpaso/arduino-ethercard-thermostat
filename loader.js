@@ -304,6 +304,7 @@ var page_tpl = '\
     </div>\
     <div data-role="content">\
         <p><a href="#setup-page-temp"  data-icon="arrow-r" data-role="button">Temperature</a></p>\
+        <p><a href="#setup-page-slot"  data-icon="arrow-r" data-role="button">Fasce orarie</a></p>\
         <p><a href="#setup-page-programs"  data-icon="arrow-r" data-role="button">Programmi giornalieri</a></p>\
         <p><a onclick="javascript:eeprom_write()" data-role="button" data-transition="fade" data-icon="alert" href="#">Salva in EEPROM</a></p>\
         <p><a onclick="javascript:eeprom_clear()" data-role="button" data-transition="fade" data-icon="alert" href="#">Cancella la EEPROM (reset)</a></p>\
@@ -347,7 +348,43 @@ var page_tpl = '\
         <p><a href="#home-page" data-direction="reverse" data-role="button"  data-icon="back">Home</a></p>\
     </div>\
 </div>\
-';
+<div id="setup-page-slot" data-role="page" data-theme="b">\
+    <div data-role="header">\
+        <h1>Temperature</h1>\
+    </div>\
+    <div data-role="content">\
+    <p><a href="#setup-page" data-direction="reverse" data-role="button"  data-icon="back">Impostazioni</a></p>\
+        <div data-role="fieldcontain" class="S">\
+            <label for="slider-S1">Slot 1 da mezzanote a</label>\
+            <input type="range" name="slider-S1" id="slider-S1" value="" step="1" min="0" max="1440"  />\
+        </div>\
+        <div data-role="fieldcontain" class="S">\
+            <label for="slider-S2">Slot 2 da slot 1 a</label>\
+            <input type="range" name="slider-S2" id="slider-S2" value="" step="1" min="0" max="1440"  />\
+        </div>\
+        <div data-role="fieldcontain" class="S">\
+            <label for="slider-S3">Slot 3 da slot 2 a</label>\
+            <input type="range" name="slider-S3" id="slider-S3" value="" step="1" min="0" max="1440"  />\
+        </div>\
+        <div data-role="fieldcontain" class="S">\
+            <label for="slider-S4">Slot 4 da slot 3 a</label>\
+            <input type="range" name="slider-S4" id="slider-S4" value="" step="1" min="0" max="1440"  />\
+        </div>\
+        <div data-role="fieldcontain" class="S">\
+            <label for="slider-S5">Slot 5 da slot 4 a</label>\
+            <input type="range" name="slider-S5" id="slider-S5" value="" step="1" min="0" max="1440"  />\
+        </div>\
+        <div data-role="fieldcontain" class="S">\
+            <label for="slider-S6">Slot 6 da slot 5 a</label>\
+            <input type="range" name="slider-S6" id="slider-S6" value="" step="1" min="0" max="1440"  />\
+        </div>\
+        <div data-role="fieldcontain" class="S">\
+            <label for="slider-S7">Slot 7 da slot 6 a</label>\
+            <input type="range" name="slider-S7" id="slider-S7" value="" step="1" min="0" max="1440"  />\
+        </div>\
+        <p><a href="#home-page" data-direction="reverse" data-role="button"  data-icon="back">Home</a></p>\
+    </div>\
+</div>';
 
 document.getElementsByTagName("body")[0].innerHTML = page_tpl;
 
@@ -422,7 +459,7 @@ function update_gui(){
         v['status'] = room_status[v.s];
         v['program_name'] = room_program_names[v.p];
         // Update elements
-        $('#room-' + k + '-details').html(v.t + '° &mdash; desiderata: ' + v.T + '°' + (v.s == 'B' ? ' - In blocco' : '') );
+        $('#room-' + k + '-details').html(v.t + '° (' + v.T + '°) ' + room_status[v.s]);
         $('#room-' + k + '-page .s').html(v['status'] = room_status[v.s]);
         $('#room-' + k + '-page .t').html(v['status'] = v.t);
         $('#room-' + k + '-page .T').html(v['status'] = v.T);
@@ -464,6 +501,9 @@ function update_gui(){
             $('#DPT-' + pidx + '-' + slot).html(json_data.programs.T[tindex] + '°');
             $('#DPT-' + pidx + '-' + slot).removeClass("T0 T1 T2 T3");
             $('#DPT-' + pidx + '-' + slot).addClass('T' + tindex);
+
+            // Slot sliders
+            $('#slider-S' + (slot + 1)).val(json_data.programs.s[slot]*100).slider('refresh');
         });
 
     });
@@ -506,6 +546,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                             json_data.programs = data;
                             var pgms = [];
                             var slot = [];
+                            // Slots
                             $.each(data.s, function(k,v){
                                 v = v*100;
                                 slot.push({'sidx': k, 'value':Math.floor(v/60) + ((v%60) ? ':' + (v%60) : '')});
@@ -560,6 +601,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
 
                             $( "#daily-program-dlg-tpl" ).tmpl(daily_pgms).appendTo(document.getElementsByTagName("body")[0]);
 
+                            $('#setup-page-slot').page();
                             // Setup events
                             $('#setup-page-temp').page();
                             $( ".T .ui-slider" ).bind( "vmouseup", function(event, ui) {
@@ -603,6 +645,17 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                 // Call
                                 ws_call(CMD_SET_HYSTERESIS, [val * 100]);
                             });
+
+                            // Slot
+                            $( ".S .ui-slider" ).bind( "vmouseup", function(event, ui) {
+                                var el = $(event.currentTarget).siblings('input')[0];
+                                var id = parseInt(el.id.replace('slider-S', ''));
+                                var val = $(el).val();
+                                json_data.programs.s[id - 1] = val / 100;
+                                // Call
+                                ws_call(CMD_SLOT_SET_UPPER_BOUND, [id, val]);
+                            });
+
 
                             $('.dpgm-T').live('vclick', function(event, ui){
                                 $.mobile.changePage( "#t-dlg-page", { role: "dialog"} );

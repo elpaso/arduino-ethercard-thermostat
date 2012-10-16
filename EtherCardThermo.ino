@@ -5,7 +5,7 @@
 */
 
 
-//#define DEBUG
+#define DEBUG
 
 /** *****************************************
  *  Pins
@@ -27,7 +27,11 @@
 #define ROOM_4_PIN 7
 #define ROOM_5_PIN 8
 
+#ifdef DEBUG
 #define LOADER_ADDRESS "http://localhost/~ale/thermoduino/loader.js"
+#else
+#define LOADER_ADDRESS "https://raw.github.com/elpaso/arduino-ethercard-thermostat/save-ram/loader.js"
+#endif
 
 #include "EtherCard.h"
 
@@ -780,13 +784,13 @@ void print_json_response(byte print_programs){
                 rooms[room].program,
                 weekly_program[rooms[room].program][this_weekday]);
 
-            ultoa(rooms[room].last_status_change, strbuf, 10);
-            bfill.emit_p( PSTR("\"l\":$S,\""),
-                strbuf);
+            //ultoa(rooms[room].last_status_change, strbuf, 10);
+            //bfill.emit_p( PSTR("\"l\":$S,\""),
+            //    strbuf);
 
             strbuf[1] = '\0';
             strbuf[0] = rooms[room].status;
-            bfill.emit_p( PSTR("s\":\"$S\""),
+            bfill.emit_p( PSTR("\"s\":\"$S\""),
                 strbuf);
 
             bfill.emit_p((room != ROOMS - 1 ? PSTR("},") : PSTR("}")));
@@ -839,6 +843,7 @@ void loop(){
         }
         cmd=analyse_cmd(data, "c");
         if(cmd > 0){
+            last_error_code = ERR_NO;
             // Switch?
             switch(cmd){
                 case CMD_ROOM_SET_PGM:
@@ -934,8 +939,19 @@ void loop(){
                         last_error_code = ERR_WRONG_PARM;
                     }
                 break;
-                case CMD_SLOT_SET_UPPER_BOUND:
-                    // Write to EEPROM
+                case CMD_SLOT_SET_UPPER_BOUND: // parm1 is 1-based
+                    parm1 = analyse_cmd(data, "p");
+                    if(!in_range(parm1, 1, SLOT_NUMBER)){
+                        last_error_code = ERR_WRONG_PARM;
+                    } else {
+                        parm2 = analyse_cmd(data, "v");
+                        if((parm1 == 1 && parm2 < slot[1])
+                            || (parm1 == SLOT_NUMBER && parm2 > slot[SLOT_NUMBER - 2])
+                            || (in_range(parm2, slot[parm1 - 2], slot[parm1])))
+                        {
+                            slot[parm1 - 1] = parm2;
+                        }
+                    }
                 break;
                 case CMD_CLEAR_EEPROM:
                     EEPROM.write(0,0);
@@ -1009,7 +1025,6 @@ void loop(){
             }
         }
         print_json_response(0);
-        last_error_code = ERR_NO;
 
 SENDTCP:ether.httpServerReply(bfill.position());
     }
