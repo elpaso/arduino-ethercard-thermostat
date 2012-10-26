@@ -4,7 +4,7 @@ var room_names = [
   'Camera A',
   'Sala',
   'Camera O',
-  'Camera P'
+  'Bagno'
 ];
 
 var UTC=2;
