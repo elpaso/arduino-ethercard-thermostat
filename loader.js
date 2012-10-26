@@ -1,6 +1,6 @@
 // Config
 var room_names = [
-  'Bagno',
+  'Camera P',
   'Camera A',
   'Sala',
   'Camera O',
