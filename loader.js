@@ -358,30 +358,37 @@ var page_tpl = '\
     <p><a href="#setup-page" data-direction="reverse" data-role="button"  data-icon="back">Impostazioni</a></p>\
         <div data-role="fieldcontain" class="S">\
             <label for="slider-S1">Slot 1 da mezzanote a</label>\
+            <span></span>\
             <input type="range" name="slider-S1" id="slider-S1" value="" step="1" min="0" max="1440"  />\
         </div>\
         <div data-role="fieldcontain" class="S">\
             <label for="slider-S2">Slot 2 da slot 1 a</label>\
+            <span></span>\
             <input type="range" name="slider-S2" id="slider-S2" value="" step="1" min="0" max="1440"  />\
         </div>\
         <div data-role="fieldcontain" class="S">\
             <label for="slider-S3">Slot 3 da slot 2 a</label>\
+            <span></span>\
             <input type="range" name="slider-S3" id="slider-S3" value="" step="1" min="0" max="1440"  />\
         </div>\
         <div data-role="fieldcontain" class="S">\
             <label for="slider-S4">Slot 4 da slot 3 a</label>\
+            <span></span>\
             <input type="range" name="slider-S4" id="slider-S4" value="" step="1" min="0" max="1440"  />\
         </div>\
         <div data-role="fieldcontain" class="S">\
             <label for="slider-S5">Slot 5 da slot 4 a</label>\
+            <span></span>\
             <input type="range" name="slider-S5" id="slider-S5" value="" step="1" min="0" max="1440"  />\
         </div>\
         <div data-role="fieldcontain" class="S">\
             <label for="slider-S6">Slot 6 da slot 5 a</label>\
+            <span></span>\
             <input type="range" name="slider-S6" id="slider-S6" value="" step="1" min="0" max="1440"  />\
         </div>\
         <div data-role="fieldcontain" class="S">\
             <label for="slider-S7">Slot 7 da slot 6 a</label>\
+            <span></span>\
             <input type="range" name="slider-S7" id="slider-S7" value="" step="1" min="0" max="1440"  />\
         </div>\
         <p><a href="#home-page" data-direction="reverse" data-role="button"  data-icon="back">Home</a></p>\
@@ -428,7 +435,7 @@ var room_program_names = [
 
     'lun-ven: ' +  room_daily_program_names[6] + ' sab-dom: ' + room_daily_program_names[7],
     'lun-sab: ' +  room_daily_program_names[6] + ' dom: ' + room_daily_program_names[7],
-]
+];
 
 function get_t (temps, slot){
     var r = 0;
@@ -528,7 +535,7 @@ function update_gui(){
 
     // Slot
     $.each(json_data.programs.s, function(k,v){
-        $('slot-' + k).html(Math.floor(v/60) + ((v%60) ? ':' + (v%60) : ''));
+        $('slot-' + k).html(Math.floor(v/60) + ((v%60) ? ':' + Math.round(v%60)) : ''));
     });
 
 }
@@ -660,6 +667,14 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                 json_data.programs.s[id - 1] = val / 100;
                                 // Call
                                 ws_call(CMD_SLOT_SET_UPPER_BOUND, [id, val]);
+                            });
+
+                            $( ".S .ui-slider" ).bind( "change", function(event, ui) {
+                                var el = $(event.currentTarget).siblings('input')[0];
+                                var id = parseInt(el.id.replace('slider-S', ''));
+                                var val = $(el).val();
+                                var span = $(event.currentTarget).siblings('span')[0];
+                                span.html(Math.floor(val/60) + ((val%60) ? ':' + Math.round(val%60)) : ''));
                             });
 
 
