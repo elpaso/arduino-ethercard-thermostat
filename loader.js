@@ -7,7 +7,7 @@ var room_names = [
   'Bagno'
 ];
 
-var UTC=2;
+var UTC=1;
 var set_didx;
 var set_pidx;
 var set_slot;
