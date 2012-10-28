@@ -172,7 +172,7 @@ var page_tpl = '\
     <div data-role="content">\
         <table class="program-table">\
             <thead>\
-                <tr><th>&nbsp;</th><th>0/{{each slot}}${value}</th><th id="slot-${sidx}">${value}/{{/each}}24</th><th>P.G.</th></tr>\
+                <tr><th>&nbsp;</th><th>0/{{each slot}}<span class="slot-${sidx}">${value}</span></th><th><span class="slot-${sidx}">${value}</span>/{{/each}}24</th><th>P.G.</th></tr>\
             </thead>\
             <tbody id="program-${pidx}-tbody">\
             {{each day}}\
@@ -193,7 +193,7 @@ var page_tpl = '\
     <div data-role="content">\
         <table class="program-table">\
             <thead>\
-                <tr><th>0/{{each slot}}${value}</th><th id="slot-${sidx}">${value}/{{/each}}24</th></tr>\
+                <tr><th>0/{{each slot}}<span class="slot-${sidx}">${value}</span></th><th> <span class="slot-${sidx}">${value}</span>/{{/each}}24</th></tr>\
             </thead>\
             <tbody id="program-${dpidx}-tbody">\
                 <tr>{{each temperature}}<td  class="dpgm-T T${tindex}" id="DPT-${dpidx}-${$index}">${tvalue}°</td>{{/each}}</tr>\
@@ -399,7 +399,7 @@ document.getElementsByTagName("body")[0].innerHTML = page_tpl;
 
 function mins_to_hhmm(v){
     var m = Math.round(v%60);
-    return Math.floor(v/60) + (m ? ':' + ( m < 10 ? '0' + m : m) : '00');
+    return Math.floor(v/60) + ':' + (m ? ( m < 10 ? '0' + m : m) : '00');
 }
 
 
@@ -540,7 +540,7 @@ function update_gui(){
 
     // Slot
     $.each(json_data.programs.s, function(k,v){
-        $('slot-' + k).html(mins_to_hhmm(v));
+        $('.slot-' + k).html(mins_to_hhmm(v));
     });
 
 }
