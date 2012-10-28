@@ -55,6 +55,7 @@ newStyle.innerHTML +='.T0 {background-color: #99FFFF;}';
 newStyle.innerHTML +='.T1 {background-color: #FFFF33;}';
 newStyle.innerHTML +='.T2 {background-color: #FF6600;}';
 newStyle.innerHTML +='.T3 {background-color: #FF0000;text-shadow: none !important;}';
+newStyle.innerHTML +='.ui-dialog-contain {max-width: 600px;}';
 
 headID.appendChild(newStyle);
 
@@ -540,7 +541,7 @@ function update_gui(){
 
     // Slot
     $.each(json_data.programs.s, function(k,v){
-        $('.slot-' + k).html(mins_to_hhmm(v));
+        $('.slot-' + k).html(mins_to_hhmm(v * 100));
     });
 
 }
