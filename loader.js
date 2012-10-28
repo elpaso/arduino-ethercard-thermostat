@@ -590,7 +590,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                     var tindex = get_t(temps, slot);
                                     pgm.push({'tindex' : tindex, 'tvalue': json_data.programs.T[tindex]});
                                 });
-                                daily_pgms.push({'dpidx': k, 'temperature': pgm, 'slot' : slot});
+                                daily_pgms.push({'dpidx': k, 'temperature': pgm, 'slot' : slots});
                             });
 
                             $( "#program-tpl" ).tmpl(pgms).appendTo(document.getElementsByTagName("body")[0]);

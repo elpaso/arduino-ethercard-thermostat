@@ -849,6 +849,7 @@ void loop(){
             switch(cmd){
                 case CMD_UNBLOCK:
                     pump_blocked_time = 0;
+                break;
                 case CMD_ROOM_SET_PGM:
                     parm1 = analyse_cmd(data, "p");
                     if(in_range(parm1, 0, ROOMS - 1)){
