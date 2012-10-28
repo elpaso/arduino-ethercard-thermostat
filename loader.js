@@ -172,11 +172,11 @@ var page_tpl = '\
     <div data-role="content">\
         <table class="program-table">\
             <thead>\
-                <tr><th>&nbsp;</th><th>0/{{each slot}}${value}</th><th id="slot-${sidx}">${value}/{{/each}}24</th></tr>\
+                <tr><th>&nbsp;</th><th>0/{{each slot}}${value}</th><th id="slot-${sidx}">${value}/{{/each}}24</th><th>P.G.</th></tr>\
             </thead>\
             <tbody id="program-${pidx}-tbody">\
             {{each day}}\
-                <tr><th>${day_name}</th>{{each temperature}}<td  class="pgm-T" id="PT-${pidx}-${didx}-${tidx}" class="T${tindex}">${value}°</td>{{/each}}</tr>\
+                <tr><th>${day_name}</th>{{each temperature}}<td  class="pgm-T" id="PT-${pidx}-${didx}-${tidx}" class="T${tindex}">${value}°</td>{{/each}}<td><a data-rel="dialog" href="#daily-program-${pidx}-page"></td></tr>\
             {{/each}}\
             </tbody>\
         </table>\
@@ -672,6 +672,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                 $("#t-dlg-page" + ' .current').hide();
                                 $("#t-dlg-page .T" + t + ' .current').show();
                             });
+
 
                             (function worker() {
                             $.ajax({
