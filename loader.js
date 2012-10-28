@@ -176,7 +176,7 @@ var page_tpl = '\
             </thead>\
             <tbody id="program-${pidx}-tbody">\
             {{each day}}\
-                <tr><th>${day_name}</th>{{each temperature}}<td  class="pgm-T" id="PT-${pidx}-${didx}-${tidx}" class="T${tindex}">${value}°</td>{{/each}}<td><a data-rel="dialog" href="#daily-program-${pidx}-page"></td></tr>\
+                <tr><th>${day_name}</th>{{each temperature}}<td  class="pgm-T" id="PT-${pidx}-${didx}-${tidx}" class="T${tindex}">${value}°</td>{{/each}}<td><a data-rel="dialog" href="#daily-program-${pidx}-page">P${pidx}</a></td></tr>\
             {{/each}}\
             </tbody>\
         </table>\
