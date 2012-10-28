@@ -151,6 +151,7 @@ static char strbuf[STR_BUFFER_SIZE+1];
 #define CMD_SET_RISE_TEMP_DELTA 11
 #define CMD_SET_BLOCKED_TIME_S 12
 #define CMD_SET_HYSTERESIS 13
+#define CMD_UNBLOCK 14
 
 //#include "Timer.h"
 Timer t;
@@ -387,7 +388,7 @@ void check_temperatures(){
     // check hot_temp and cold_temp
     if(!pump_blocked_time && pump_open_time && (now.unixtime() - pump_open_time > rise_temp_time_s)){
         // Block if lower
-        if( hot_temp - cold_temp < rise_temp_delta ){
+        if((hot_temp - cold_temp) < rise_temp_delta && hot_temp < T[3] + rise_temp_delta){
             pump_blocked_time = now.unixtime();
             pump_open = 0;
         }
@@ -841,11 +842,13 @@ void loop(){
             bfill.emit_p(PSTR("$S"), strbuf);
             goto SENDTCP;
         }
-        cmd=analyse_cmd(data, "c");
+        cmd = analyse_cmd(data, "c");
         if(cmd > 0){
             last_error_code = ERR_NO;
             // Switch?
             switch(cmd){
+                case CMD_UNBLOCK:
+                    pump_blocked_time = 0;
                 case CMD_ROOM_SET_PGM:
                     parm1 = analyse_cmd(data, "p");
                     if(in_range(parm1, 0, ROOMS - 1)){
