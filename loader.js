@@ -677,7 +677,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                             $(".S input").change(function(){
                                 var val = $(this).val();
                                 var span = $(this).siblings('span')[0];
-                                span.html(mins_to_hhmm(val));
+                                $(span).html(mins_to_hhmm(val));
                             });
 
                             $('.dpgm-T').live('vclick', function(event, ui){
