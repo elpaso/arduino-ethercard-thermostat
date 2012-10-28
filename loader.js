@@ -176,7 +176,7 @@ var page_tpl = '\
             </thead>\
             <tbody id="program-${pidx}-tbody">\
             {{each day}}\
-                <tr><th>${day_name}</th>{{each temperature}}<td  class="pgm-T" id="PT-${pidx}-${didx}-${tidx}" class="T${tindex}">${value}°</td>{{/each}}<td><a data-rel="dialog" href="#daily-program-${pidx}-page">P${pidx}</a></td></tr>\
+                <tr><th>${day_name}</th>{{each temperature}}<td  class="pgm-T" id="PT-${pidx}-${didx}-${tidx}" class="T${tindex}">${value}°</td>{{/each}}<td><a data-rel="dialog" href="#daily-program-${pidx}-page">P${dpgidx}</a></td></tr>\
             {{/each}}\
             </tbody>\
         </table>\
@@ -557,6 +557,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                 v = v*100;
                                 slot.push({'sidx': k, 'value':Math.floor(v/60) + ((v%60) ? ':' + (v%60) : '')});
                             });
+
                             $.each(data.w, function(pidx,v1){
                                 var p = {'name':  'Programma ' + pidx, 'pidx': pidx, 'day': [], 'slot': slot };
                                 $.each([0, 1, 2, 3, 4], function(didx,v2){
@@ -565,7 +566,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                         var tindex = get_t(json_data.programs.d[v1[0]], slot);
                                         temps.push({'value': data.T[tindex], 'tindex' : tindex, 'tidx': slot});
                                     });
-                                    p.day.push({'day_name': day_names[didx], 'didx' : didx, 'temperature' : temps});
+                                    p.day.push({'day_name': day_names[didx], 'didx' : didx, 'temperature' : temps, 'dpgidx' : v1[0]});
                                 });
                                 // Sa
                                 var didx = 5;
@@ -574,7 +575,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                     var tindex = get_t(json_data.programs.d[v1[1]], slot);
                                     temps.push({'value': data.T[tindex], 'tindex' : tindex, 'tidx': slot});
                                 });
-                                p.day.push({'day_name': day_names[didx], 'didx' : didx, 'temperature' : temps});
+                                p.day.push({'day_name': day_names[didx], 'didx' : didx, 'temperature' : temps, 'dpgidx' : v1[1]});
                                 // Su
                                 var didx = 6;
                                 var temps = [];
@@ -582,8 +583,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                     var tindex = get_t(json_data.programs.d[v1[2]], slot);
                                     temps.push({'value': data.T[tindex], 'tindex' : tindex, 'tidx': slot});
                                 });
-                                p.day.push({'day_name': day_names[didx], 'didx' : didx, 'temperature' : temps});
-
+                                p.day.push({'day_name': day_names[didx], 'didx' : didx, 'temperature' : temps, 'dpgidx' : v1[2]});
                                 pgms.push(p);
                             });
 
