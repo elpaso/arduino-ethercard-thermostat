@@ -55,7 +55,7 @@ newStyle.innerHTML +='.T0 {background-color: #99FFFF;}';
 newStyle.innerHTML +='.T1 {background-color: #FFFF33;}';
 newStyle.innerHTML +='.T2 {background-color: #FF6600;}';
 newStyle.innerHTML +='.T3 {background-color: #FF0000;text-shadow: none !important;}';
-newStyle.innerHTML +='.ui-dialog-contain {max-width: 600px;}';
+newStyle.innerHTML +='.ui-dialog-contain {max-width: 720px;}';
 
 headID.appendChild(newStyle);
 
