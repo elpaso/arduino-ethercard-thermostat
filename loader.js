@@ -78,6 +78,7 @@ var  CMD_SET_RISE_TEMP_TIME_S = 10;
 var  CMD_SET_RISE_DELTA = 11;
 var  CMD_SET_BLOCKED_TIME_S = 12
 var  CMD_SET_HYSTERESIS = 13
+var  CMD_UNBLOCK = 14
 
 
 function ws_call(cmd, parms, callback){
@@ -303,6 +304,7 @@ var page_tpl = '\
         <h1>Impostazioni</h1>\
     </div>\
     <div data-role="content">\
+        <p><a onclick="javascript:ws_call(CMD_UNBLOCK);" data-role="button" href="#">Sblocca subito</a></p>\
         <p><a href="#setup-page-temp"  data-icon="arrow-r" data-role="button">Temperature</a></p>\
         <p><a href="#setup-page-slot"  data-icon="arrow-r" data-role="button">Fasce orarie</a></p>\
         <p><a href="#setup-page-programs"  data-icon="arrow-r" data-role="button">Programmi giornalieri</a></p>\
