@@ -479,9 +479,6 @@ function update_gui(){
                 $('#PT-' + pidx + '-' + didx + '-' + slot).html(json_data.programs.T[tindex] + '°');
                 $('#PT-' + pidx + '-' + didx + '-' + slot).removeClass("T0 T1 T2 T3");
                 $('#PT-' + pidx + '-' + didx + '-' + slot).addClass('T' + tindex);
-                $('#DPT-' + pidx + '-' + slot).html(json_data.programs.T[tindex] + '°');
-                $('#DPT-' + pidx + '-' + slot).addClass('T' + tindex);
-                $('#DPT-' + pidx + '-' + slot).removeClass("T0 T1 T2 T3");
             });
             //console.log("Sa", json_data.programs.d[v1[1]]);
             //console.log(get_t(json_data.programs.d[v1[1]], slot));
@@ -490,9 +487,6 @@ function update_gui(){
             $('#PT-' + pidx + '-' + didx + '-' + slot).html(json_data.programs.T[tindex] + '°');
             $('#PT-' + pidx + '-' + didx + '-' + slot).removeClass("T0 T1 T2 T3");
             $('#PT-' + pidx + '-' + didx + '-' + slot).addClass('T' + tindex);
-            $('#DPT-' + pidx + '-' + slot).html(json_data.programs.T[tindex] + '°');
-            $('#DPT-' + pidx + '-' + slot).removeClass("T0 T1 T2 T3");
-            $('#DPT-' + pidx + '-' + slot).addClass('T' + tindex);
             //console.log("Do", json_data.programs.d[v1[2]]);
             //console.log(get_t(json_data.programs.d[v1[2]], slot));
             didx = 6;
@@ -500,15 +494,25 @@ function update_gui(){
             $('#PT-' + pidx + '-' + didx + '-' + slot).html(json_data.programs.T[tindex] + '°');
             $('#PT-' + pidx + '-' + didx + '-' + slot).removeClass("T0 T1 T2 T3");
             $('#PT-' + pidx + '-' + didx + '-' + slot).addClass('T' + tindex);
-            $('#DPT-' + pidx + '-' + slot).html(json_data.programs.T[tindex] + '°');
-            $('#DPT-' + pidx + '-' + slot).removeClass("T0 T1 T2 T3");
-            $('#DPT-' + pidx + '-' + slot).addClass('T' + tindex);
 
             // Slot sliders
             $('#slider-S' + (slot + 1)).val(json_data.programs.s[slot]*100).slider('refresh');
         });
 
+
     });
+
+    $.each(json_data.programs.d, function(pidx, temps){
+        $.each(slots, function(slot, value){
+            var tindex = get_t(temps, slot);
+            $('#DPT-' + pidx + '-' + slot).html(json_data.programs.T[tindex] + '°');
+            $('#DPT-' + pidx + '-' + slot).removeClass("T0 T1 T2 T3");
+            $('#DPT-' + pidx + '-' + slot).addClass('T' + tindex);
+        });
+    });
+
+
+
 
     $.each(json_data.programs.T, function(k,v){
         if(k) {
