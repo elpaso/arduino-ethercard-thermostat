@@ -562,7 +562,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                             // Slots
                             $.each(data.s, function(k,v){
                                 v = v*100;
-                                slot.push({'sidx': k, 'value':Math.floor(v/60) + ((v%60) ? ':' + (v%60) : '')});
+                                slot.push({'sidx': k, 'value':Math.floor(v/60) + ((v%60) ? ':' + Math.round(v%60) : '')});
                             });
 
                             $.each(data.w, function(pidx,v1){
@@ -669,10 +669,9 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                 ws_call(CMD_SLOT_SET_UPPER_BOUND, [id, val]);
                             });
 
-                            $( ".S .ui-slider" ).bind( "change", function(event, ui) {
-                                var el = $(event.currentTarget).siblings('input')[0];
-                                var id = parseInt(el.id.replace('slider-S', ''));
-                                var val = $(el).val();
+                            $(".S .ui-slider input").change(function(){
+                                var val = $(this).val();
+                                var span = $(this).siblings('span')[0];
                                 var span = $(event.currentTarget).siblings('span')[0];
                                 span.html(Math.floor(val/60) + ((val%60) ? ':' + Math.round(val%60) : ''));
                             });
