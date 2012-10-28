@@ -397,6 +397,11 @@ var page_tpl = '\
 
 document.getElementsByTagName("body")[0].innerHTML = page_tpl;
 
+function mins_to_hhmm(v){
+    var m = Math.round(v%60);
+    return Math.floor(v/60) + (m ? ':' + ( m < 10 ? '0' + m : m) : '00');
+}
+
 
 var room_status = {
   'O': 'Riscaldamento in corso',
@@ -535,7 +540,7 @@ function update_gui(){
 
     // Slot
     $.each(json_data.programs.s, function(k,v){
-        $('slot-' + k).html(Math.floor(v/60) + ((v%60) ? ':' + Math.round(v%60) : ''));
+        $('slot-' + k).html(mins_to_hhmm(v));
     });
 
 }
@@ -562,7 +567,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                             // Slots
                             $.each(data.s, function(k,v){
                                 v = v*100;
-                                slot.push({'sidx': k, 'value':Math.floor(v/60) + ((v%60) ? ':' + Math.round(v%60) : '')});
+                                slot.push({'sidx': k, 'value': mins_to_hhmm(v)});
                             });
 
                             $.each(data.w, function(pidx,v1){
@@ -669,13 +674,12 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                 ws_call(CMD_SLOT_SET_UPPER_BOUND, [id, val]);
                             });
 
-                            $(".S .ui-slider input").change(function(){
+                            $(".S input").change(function(){
                                 var val = $(this).val();
                                 var span = $(this).siblings('span')[0];
                                 var span = $(event.currentTarget).siblings('span')[0];
-                                span.html(Math.floor(val/60) + ((val%60) ? ':' + Math.round(val%60) : ''));
+                                span.html(mins_to_hhmm(val));
                             });
-
 
                             $('.dpgm-T').live('vclick', function(event, ui){
                                 $.mobile.changePage( "#t-dlg-page", { role: "dialog"} );
