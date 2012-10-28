@@ -535,7 +535,7 @@ function update_gui(){
 
     // Slot
     $.each(json_data.programs.s, function(k,v){
-        $('slot-' + k).html(Math.floor(v/60) + ((v%60) ? ':' + Math.round(v%60)) : ''));
+        $('slot-' + k).html(Math.floor(v/60) + ((v%60) ? ':' + Math.round(v%60) : ''));
     });
 
 }
@@ -674,7 +674,7 @@ loadScript('http://code.jquery.com/jquery-1.7.1.min.js', function(){
                                 var id = parseInt(el.id.replace('slider-S', ''));
                                 var val = $(el).val();
                                 var span = $(event.currentTarget).siblings('span')[0];
-                                span.html(Math.floor(val/60) + ((val%60) ? ':' + Math.round(val%60)) : ''));
+                                span.html(Math.floor(val/60) + ((val%60) ? ':' + Math.round(val%60) : ''));
                             });
 
 
